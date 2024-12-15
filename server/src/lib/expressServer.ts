@@ -11,7 +11,9 @@ const TURNSTILE_SITE_VERIFY_URL =
   'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 const TURNSTILE_SECRET_KEYS = Object.freeze({
   ALWAYS_SUCCESS: '1x0000000000000000000000000000000AA',
-  ALWAYS_FAIL: '',
+  ALWAYS_FAIL: '2x0000000000000000000000000000000AA',
+  TOKEN_ALREADY_USED: '3x0000000000000000000000000000000AA',
+  REAL_SECRET: '',
 });
 // #endregion
 
@@ -27,9 +29,8 @@ const expressServer = (app: express.Application, isDev = false) => {
   app.use(bodyParser.json()); // for JSON bodies
   app.use(bodyParser.urlencoded({ extended: true })); // for URL-encoded bodies
 
+  // tests with: curl 'http://localhost:8082/allwaysSuccess' --data 'token=fakeornothingastoken'
   app.post('/allwaysSuccess', async (req: Request, res: Response) => {
-    // tests with
-    // curl 'http:localhost:8082/allwaysSuccess' --data 'token=fakeornothingastoken'
     try {
       const token = req?.body?.token ?? 'NO_TOKEN';
       const ip = req.ip;
@@ -45,33 +46,95 @@ const expressServer = (app: express.Application, isDev = false) => {
         response: {
           status: response.status,
           data: response.data,
+          stringiFiedData: JSON.stringify(response.data, null, ' '),
         },
       });
       res.json({ status: response.status, data: response.data });
     } catch (error) {
       console.error('ERROR: ', { error });
-      res.json('POST Request failed');
+      res.json('/allwaysSuccess Request failed');
     }
   });
 
+  // tests with: curl 'http://localhost:8082/allwaysFail' --data 'token=fakeornothingastoken'
   app.post('/allwaysFail', async (req: Request, res: Response) => {
-    console.info('POST Request Called for /allwaysFail endpoint');
     try {
-      //
+      const token = req?.body?.token ?? 'NO_TOKEN';
+      const ip = req.ip;
+      const body = {
+        secret: TURNSTILE_SECRET_KEYS.ALWAYS_FAIL,
+        response: token,
+        remoteip: ip,
+      };
+      const response = await axios.post(TURNSTILE_SITE_VERIFY_URL, body);
+
+      console.info('POST Request Called for /allwaysFail endpoint : ', {
+        requestBody: body,
+        response: {
+          status: response.status,
+          data: response.data,
+          stringiFiedData: JSON.stringify(response.data, null, ' '),
+        },
+      });
+      res.json({ status: response.status, data: response.data });
     } catch (error) {
       console.error('ERROR: ', { error });
+      res.json('/allwaysFail Request failed');
     }
-    res.json('POST Request Called');
   });
 
-  app.post('/challenge', async (req: Request, res: Response) => {
-    console.info('POST Request Called for /challenge endpoint');
+  // tests with: curl 'http://localhost:8082/tokenAlredyUsed' --data 'token=fakeornothingastoken'
+  app.post('/tokenAlredyUsed', async (req: Request, res: Response) => {
     try {
-      //
+      const token = req?.body?.token ?? 'NO_TOKEN';
+      const ip = req.ip;
+      const body = {
+        secret: TURNSTILE_SECRET_KEYS.TOKEN_ALREADY_USED,
+        response: token,
+        remoteip: ip,
+      };
+      const response = await axios.post(TURNSTILE_SITE_VERIFY_URL, body);
+
+      console.info('POST Request Called for /tokenAlredyUsed endpoint : ', {
+        requestBody: body,
+        response: {
+          status: response.status,
+          data: response.data,
+          stringiFiedData: JSON.stringify(response.data, null, ' '),
+        },
+      });
+      res.json({ status: response.status, data: response.data });
     } catch (error) {
       console.error('ERROR: ', { error });
+      res.json('/tokenAlredyUsed Request failed');
     }
-    res.json('POST Request Called');
+  });
+
+  // tests with: curl 'http://localhost:8082/challenge' --data 'token=YOUR_REAL_TOKEN_FROM_TURNTILE_DASHBOARD'
+  app.post('/challenge', async (req: Request, res: Response) => {
+    try {
+      const token = req?.body?.token ?? 'NO_TOKEN';
+      const ip = req.ip;
+      const body = {
+        secret: TURNSTILE_SECRET_KEYS.REAL_SECRET,
+        response: token,
+        remoteip: ip,
+      };
+      const response = await axios.post(TURNSTILE_SITE_VERIFY_URL, body);
+
+      console.info('POST Request Called for /challenge endpoint : ', {
+        requestBody: body,
+        response: {
+          status: response.status,
+          data: response.data,
+          stringiFiedData: JSON.stringify(response.data, null, ' '),
+        },
+      });
+      res.json({ status: response.status, data: response.data });
+    } catch (error) {
+      console.error('ERROR: ', { error });
+      res.json('/challenge Request failed');
+    }
   });
 
   app.get('*', (req: Request, res: Response) => {
